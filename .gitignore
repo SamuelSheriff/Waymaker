@@ -1,0 +1,36 @@
+# dependencies
+node_modules
+
+# build / framework output
+dist
+.output
+.nitro
+.tanstack
+.vercel
+.vinxi
+*.local
+
+# env (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# editor
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# local QA / sandbox artifacts
+screenshots
+artifacts
+attachments
+tmp
+/tmp
+
+AGENTS.md
+.node_modules.lock
