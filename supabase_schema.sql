@@ -1,12 +1,12 @@
 -- ============================================================================
--- WAYMARK SUPABASE SCHEMA
--- Isolated table names (waymark_*) to avoid collision with any other website
--- in the same Supabase project.
+-- WAYMAKER SUPABASE SCHEMA
+-- Scoped with client_id to prevent data collisions and ensure privacy across clients
 -- ============================================================================
 
 -- 1. Goals / Marks Table
 CREATE TABLE IF NOT EXISTS public.waymark_goals (
   id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL DEFAULT 'default_client',
   title TEXT NOT NULL,
   why TEXT DEFAULT '',
   kind TEXT NOT NULL,
@@ -20,23 +20,38 @@ CREATE TABLE IF NOT EXISTS public.waymark_goals (
   check_ins JSONB DEFAULT '[]'::jsonb,
   reminder JSONB,
   board_id TEXT,
+  category TEXT,
+  priority TEXT,
+  obstacle TEXT,
+  protocol TEXT,
+  frequency_per_week NUMERIC,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Boards Table (Whiteboard strokes and stickies)
+-- Index on client_id for ultra-fast scoped queries
+CREATE INDEX IF NOT EXISTS idx_waymark_goals_client ON public.waymark_goals(client_id);
+
+-- 2. Boards Table (Whiteboard strokes, shapes, and stickies)
 CREATE TABLE IF NOT EXISTS public.waymark_boards (
   id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL DEFAULT 'default_client',
   title TEXT NOT NULL,
   goal_id TEXT,
   strokes JSONB DEFAULT '[]'::jsonb,
   stickies JSONB DEFAULT '[]'::jsonb,
+  connections JSONB DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_waymark_boards_client ON public.waymark_boards(client_id);
+
 -- 3. Profile Table
 CREATE TABLE IF NOT EXISTS public.waymark_profile (
-  id TEXT PRIMARY KEY DEFAULT 'default_user',
+  id TEXT PRIMARY KEY DEFAULT 'default_client',
+  client_id TEXT NOT NULL DEFAULT 'default_client',
   name TEXT DEFAULT '',
+  ai_api_key TEXT,
+  ai_provider TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

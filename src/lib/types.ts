@@ -1,12 +1,17 @@
 export type GoalKind = "purchase" | "habit" | "project";
 export type GoalStatus = "active" | "paused" | "completed";
-export type StickyTone = "paper" | "sage" | "ink";
+export type StickyTone = "paper" | "sage" | "ink" | "clay" | "gold";
 export type DrawTool = "pen" | "line" | "highlighter" | "eraser";
+
+export type BoardNodeKind = "card" | "rectangle" | "circle" | "diamond" | "pill" | "symbol";
+export type BoardSymbol = "star" | "target" | "flag" | "sparkle" | "alert" | "heart" | "lightbulb" | "check";
 
 export interface Milestone {
   id: string;
   title: string;
   done: boolean;
+  dueDate?: string | null;
+  notes?: string;
 }
 
 export interface CheckIn {
@@ -39,6 +44,12 @@ export interface Goal {
   checkIns: CheckIn[];
   reminder: Reminder | null;
   boardId: string;
+  category?: string;
+  priority?: "gentle" | "medium" | "core";
+  obstacle?: string;
+  protocol?: string;
+  frequencyPerWeek?: number;
+  updatedAt?: string;
 }
 
 export interface StrokePoint {
@@ -62,6 +73,19 @@ export interface Sticky {
   h: number;
   text: string;
   tone: StickyTone;
+  kind?: BoardNodeKind;
+  symbol?: BoardSymbol;
+  status?: "todo" | "in_progress" | "done";
+  linkedGoalId?: string;
+  linkedMilestoneId?: string;
+}
+
+export interface BoardConnection {
+  id: string;
+  fromId: string;
+  toId: string;
+  label?: string;
+  style?: "arrow" | "dashed" | "solid";
 }
 
 export interface Board {
@@ -70,11 +94,29 @@ export interface Board {
   goalId: string | null;
   strokes: Stroke[];
   stickies: Sticky[];
+  connections?: BoardConnection[];
   updatedAt: string;
+}
+
+export interface GoalDraft {
+  title: string;
+  why: string;
+  kind: GoalKind;
+  target: number;
+  unit: string;
+  deadline: string | null;
+  category?: string;
+  priority?: "gentle" | "medium" | "core";
+  obstacle?: string;
+  protocol?: string;
+  frequencyPerWeek?: number;
+  milestones?: Array<{ title: string; notes?: string }>;
 }
 
 export interface Profile {
   name: string;
+  aiApiKey?: string;
+  aiProvider?: "offline" | "gemini" | "openai" | "groq";
 }
 
 export const KIND_META: Record<
@@ -100,6 +142,15 @@ export const KIND_META: Record<
     defaultTarget: 5,
   },
 };
+
+export const GOAL_CATEGORIES = [
+  "Craft & Work",
+  "Health & Body",
+  "Mind & Spirit",
+  "Finance",
+  "Learning",
+  "Life & Home",
+] as const;
 
 export const WEEKDAYS = [
   { id: 0, label: "S", name: "Sunday" },

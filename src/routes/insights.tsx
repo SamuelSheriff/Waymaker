@@ -2,12 +2,15 @@ import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { format, parseISO, subDays } from "date-fns";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Sparkles, TrendingUp, Zap } from "lucide-react";
 import { useGoalStore } from "@/lib/store";
 import { formatAmount, progressOf, todayKey } from "@/lib/format";
 import { habitStreak, logsInRange } from "@/lib/stats";
 import { KIND_META, type GoalKind } from "@/lib/types";
+import { calculateMomentum } from "@/lib/intelligence";
 import { ProgressRing } from "@/components/progress-ring";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/insights")({ component: InsightsPage });
 
@@ -22,6 +25,8 @@ function InsightsPage() {
   const active = goals.filter((g) => g.status === "active");
   const done = goals.filter((g) => g.status === "completed");
   const overall = goals.length ? goals.reduce((a, g) => a + progressOf(g), 0) / goals.length : 0;
+
+  const momentum = useMemo(() => calculateMomentum(goals), [goals]);
 
   const byKind = (Object.keys(KIND_META) as GoalKind[]).map((k) => {
     const list = goals.filter((g) => g.kind === k);
@@ -70,12 +75,60 @@ function InsightsPage() {
         <p className="mt-1 text-sm text-muted-foreground">How the path looks from above.</p>
       </header>
 
-      <section className="grid grid-cols-3 gap-3">
+      {/* Primary Stats */}
+      <section className="grid grid-cols-4 gap-2.5">
         <Stat label="On course" value={`${Math.round(overall * 100)}%`} />
         <Stat label="This week" value={String(weekLogs)} />
-        <Stat label="Streak" value={String(bestStreak)} />
+        <Stat label="Best streak" value={String(bestStreak)} />
+        <div className="rounded-xl border border-sage/40 bg-secondary/30 px-2 py-4 text-center shadow-card">
+          <p className="font-display text-2xl tabular-nums tracking-tight text-sage">
+            {momentum.score}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground font-medium">Momentum</p>
+        </div>
       </section>
 
+      {/* Intelligent Momentum & Trajectory Intelligence */}
+      <section className="rounded-xl border border-border bg-card p-5 shadow-card space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-4 text-sage" />
+            <h2 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              Intelligent Trajectory & Predictions
+            </h2>
+          </div>
+          <Badge variant="outline" className="text-sage border-sage/50">
+            {momentum.level}
+          </Badge>
+        </div>
+
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {momentum.summary}
+        </p>
+
+        {momentum.projectedCompletions.length > 0 && (
+          <div className="space-y-2 pt-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Projected Horizons
+            </p>
+            <ul className="space-y-2">
+              {momentum.projectedCompletions.slice(0, 4).map((p) => (
+                <li
+                  key={p.goalTitle}
+                  className="flex items-center justify-between text-xs rounded-md border border-border bg-secondary/30 px-3 py-2"
+                >
+                  <span className="font-medium text-foreground truncate">{p.goalTitle}</span>
+                  <span className="tabular-nums text-muted-foreground shrink-0 ml-2">
+                    Est. {p.estimatedDate}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      {/* Check-in Activity Chart */}
       <section className="rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -127,9 +180,12 @@ function InsightsPage() {
         </div>
       </section>
 
+      {/* Savings Summary */}
       {savedRows.length > 0 ? (
         <section className="rounded-xl border border-border bg-card px-4 py-4 shadow-card">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Saved toward things</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Saved toward things
+          </p>
           <ul className="mt-1 space-y-1">
             {savedRows.map(([unit, row]) => (
               <li key={unit} className="font-display text-2xl tabular-nums">
@@ -143,6 +199,7 @@ function InsightsPage() {
         </section>
       ) : null}
 
+      {/* By Kind */}
       <section className="rounded-xl border border-border bg-card p-5 shadow-card">
         <h2 className="mb-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">By kind</h2>
         <ul className="space-y-4">
@@ -160,6 +217,7 @@ function InsightsPage() {
         </ul>
       </section>
 
+      {/* All Marks */}
       <section className="rounded-xl border border-border bg-card p-5 shadow-card">
         <h2 className="mb-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">Each mark</h2>
         {goals.length === 0 ? (
@@ -172,7 +230,7 @@ function InsightsPage() {
                 <li key={g.id} className="flex items-center gap-3">
                   <ProgressRing value={progressOf(g)} size={36} stroke={3} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{g.title}</p>
+                    <p className="truncate text-sm font-medium">{g.title}</p>
                     <p className="text-xs text-muted-foreground">{KIND_META[g.kind].label}</p>
                   </div>
                   <span className="tabular-nums text-sm text-muted-foreground">{pct}%</span>
@@ -188,7 +246,7 @@ function InsightsPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-3 py-4 text-center shadow-card">
+    <div className="rounded-xl border border-border bg-card px-2 py-4 text-center shadow-card">
       <p className="font-display text-2xl tabular-nums tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{label}</p>
     </div>

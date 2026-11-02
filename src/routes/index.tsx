@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, ChevronRight, PenLine, Sparkles, Zap } from "lucide-react";
 import { useGoalStore } from "@/lib/store";
 import { greetingFor, progressOf } from "@/lib/format";
 import { KIND_META } from "@/lib/types";
 import { loggedToday, nextMilestone } from "@/lib/stats";
+import { calculateMomentum } from "@/lib/intelligence";
 import { GoalCard } from "@/components/goal-card";
 import { ProgressRing } from "@/components/progress-ring";
 import { LogProgressSheet } from "@/components/composer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import type { Goal } from "@/lib/types";
 
 export const Route = createFileRoute("/")({ component: Home });
@@ -44,6 +46,8 @@ function Home() {
     return step ? [{ goal: g, step }] : [];
   });
 
+  const momentum = useMemo(() => calculateMomentum(goals), [goals]);
+
   const greet = greetingFor();
   const hello = name.trim() ? `${greet}, ${name.trim()}` : greet;
 
@@ -71,21 +75,53 @@ function Home() {
         ) : null}
       </header>
 
-      <section className="rounded-xl border border-border bg-card p-5 shadow-card">
-        <div className="flex items-center gap-5">
-          <ProgressRing value={overall} size={88} stroke={7}>
-            <span className="font-display text-lg tabular-nums">{Math.round(overall * 100)}</span>
+      {/* Progress & Momentum Overview */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* On Course Average */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-card flex items-center gap-4">
+          <ProgressRing value={overall} size={76} stroke={6}>
+            <span className="font-display text-base tabular-nums">{Math.round(overall * 100)}%</span>
           </ProgressRing>
           <div className="min-w-0">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">On course</p>
-            <p className="mt-1 font-display text-xl font-medium tracking-tight">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">On Course</p>
+            <p className="mt-0.5 font-display text-lg font-medium tracking-tight">
               {active.length} active · {done.length} complete
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Average across every mark you are holding.</p>
+            <p className="text-xs text-muted-foreground">Overall life alignment</p>
+          </div>
+        </div>
+
+        {/* Intelligent Momentum Score */}
+        <div className="rounded-xl border border-sage/40 bg-secondary/30 p-4 shadow-card flex items-center gap-4">
+          <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-sage/20 border border-sage/40 text-sage font-display text-lg tabular-nums">
+            {momentum.score}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="size-3 text-sage" />
+              <p className="text-xs font-semibold tracking-wide text-sage uppercase">
+                {momentum.level}
+              </p>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+              {momentum.summary}
+            </p>
           </div>
         </div>
       </section>
 
+      {/* Intelligent Nudge Banner */}
+      {momentum.recommendations.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-border/80 bg-card/60 p-3 text-xs">
+          <Zap className="size-4 shrink-0 text-amber-500 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-foreground">Intelligent Focus Nudge: </span>
+            <span className="text-muted-foreground">{momentum.recommendations[0]}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Today Section */}
       {todayHabits.length > 0 || dueToday.length > 0 || nextSteps.length > 0 ? (
         <section>
           <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Today</h2>
@@ -98,7 +134,14 @@ function Home() {
                   className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{g.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{g.title}</p>
+                      {g.category && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                          {g.category}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {doneToday ? "Logged today" : "Not yet today"}
                     </p>
@@ -128,33 +171,25 @@ function Home() {
                     <p className="truncate text-sm font-medium">{g.title}</p>
                     <p className="text-xs tabular-nums text-muted-foreground">{g.reminder?.time}</p>
                   </div>
-                  {g.kind === "project" ? (
-                    <Button asChild size="sm" variant="secondary">
-                      <Link to="/goals/$goalId" params={{ goalId: g.id }}>
-                        Open
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="secondary" onClick={() => setLogGoal(g)}>
-                      Log
-                    </Button>
-                  )}
+                  <Button size="sm" variant="secondary" onClick={() => setLogGoal(g)}>
+                    Log
+                  </Button>
                 </li>
               ))}
-            {nextSteps.slice(0, 2).map(({ goal, step }) => (
+            {nextSteps.map(({ goal: g, step }) => (
               <li
-                key={`s-${goal.id}-${step.id}`}
+                key={`s-${step.id}`}
                 className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{goal.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">Next: {step.title}</p>
+                  <p className="truncate text-sm font-medium">{step.title}</p>
+                  <p className="text-xs text-muted-foreground">Next for {g.title}</p>
                 </div>
                 <Button
                   size="sm"
-                  variant="secondary"
-                  onClick={() => toggleMilestone(goal.id, step.id)}
-                  aria-label={`Complete ${step.title}`}
+                  variant="outline"
+                  onClick={() => toggleMilestone(g.id, step.id)}
+                  aria-label={`Mark ${step.title} complete`}
                 >
                   <Check className="size-3.5" />
                   Done
@@ -165,60 +200,51 @@ function Home() {
         </section>
       ) : null}
 
+      {/* Visual Planning Quick Access */}
+      <section className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-ink border border-border">
+            <PenLine className="size-5 text-sage" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Visual Planning Board</p>
+            <p className="text-xs text-muted-foreground">
+              Connect shapes, sticky notes, and handwritten sketches.
+            </p>
+          </div>
+        </div>
+        <Button asChild size="sm" variant="outline" className="gap-1 text-xs">
+          <Link to="/board" search={{}}>
+            <span>Open Board</span>
+            <ChevronRight className="size-3.5" />
+          </Link>
+        </Button>
+      </section>
+
+      {/* Active Marks List */}
       <section>
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Active marks</h2>
+          <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Marks</h2>
           <Link to="/goals" className="text-xs text-muted-foreground hover:text-foreground">
-            All
+            All marks
           </Link>
         </div>
         {active.length === 0 ? (
-          <EmptyMarks />
-        ) : (
-          <div className="space-y-3">
-            {active.map((g) => (
-              <GoalCard key={g.id} goal={g} onLog={setLogGoal} />
-            ))}
+          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No marks active. Tap the plus below to begin.
           </div>
+        ) : (
+          <ul className="space-y-3">
+            {active.map((g) => (
+              <li key={g.id}>
+                <GoalCard goal={g} onLog={() => setLogGoal(g)} />
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
-      {done.length > 0 ? (
-        <section>
-          <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Complete</h2>
-          <div className="space-y-3">
-            {done.map((g) => (
-              <GoalCard key={g.id} goal={g} compact />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <p className="pb-4 text-center text-xs text-muted-foreground">
-        On Android, open the browser menu and tap Add to Home screen to keep Waymark with your other apps.
-      </p>
-
       <LogProgressSheet goal={logGoal} open={Boolean(logGoal)} onOpenChange={(v) => !v && setLogGoal(null)} />
-    </div>
-  );
-}
-
-function EmptyMarks() {
-  return (
-    <div className="rounded-xl border border-dashed border-border px-5 py-10 text-center">
-      <p className="font-display text-xl italic">No marks yet</p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Set a purchase, a habit, or a project. The board is there when you need to think on paper.
-      </p>
-      <Button
-        className="mt-5"
-        onClick={() => window.dispatchEvent(new Event("waymark:new"))}
-      >
-        New mark
-      </Button>
-      <p className="mt-4 text-xs text-muted-foreground">
-        {KIND_META.purchase.label} · {KIND_META.habit.label} · {KIND_META.project.label}
-      </p>
     </div>
   );
 }

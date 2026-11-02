@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { KeyRound, Sparkles } from "lucide-react";
 import type { Goal, GoalKind, Reminder } from "@/lib/types";
-import { KIND_META, WEEKDAYS } from "@/lib/types";
+import { GOAL_CATEGORIES, KIND_META, WEEKDAYS } from "@/lib/types";
 import { defaultDraft, newReminder, useGoalStore, type GoalDraft } from "@/lib/store";
 import { ensureNotifyPermission, sendNotification } from "@/lib/reminders";
+import { generateIntelligentPlan } from "@/lib/intelligence";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,26 +81,100 @@ function DraftFields({
     }));
   }
 
+  function handleAiDecompose() {
+    if (!draft.title.trim()) {
+      toast("Type a rough goal name or idea first");
+      return;
+    }
+    const suggestion = generateIntelligentPlan(draft.title, draft.kind);
+    setDraft((d) => ({
+      ...d,
+      title: suggestion.title,
+      why: suggestion.why,
+      category: suggestion.category,
+      priority: suggestion.priority,
+      obstacle: suggestion.obstacle,
+      protocol: suggestion.protocol,
+      target: suggestion.target,
+      unit: suggestion.unit,
+      milestones: suggestion.milestones,
+    }));
+    toast("AI generated a structured plan & psychological guardrails!");
+  }
+
   const hideTarget = lockKind && draft.kind === "project";
 
   return (
     <>
       {lockKind ? null : <KindPills value={draft.kind} onChange={setKind} />}
+
+      {/* Goal Title with AI Assistant Button */}
       <div className="grid gap-1.5">
-        <Label htmlFor="goal-title">Name</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="goal-title">Name</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={handleAiDecompose}
+            className="h-6 gap-1 px-1.5 text-xs text-sage hover:text-sage"
+          >
+            <Sparkles className="size-3" />
+            <span>AI Breakdown</span>
+          </Button>
+        </div>
         <Input
           id="goal-title"
           value={draft.title}
           onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
           placeholder={
             draft.kind === "purchase"
-              ? "Leica Q3"
+              ? "Leica Q3 camera fund"
               : draft.kind === "habit"
-                ? "Run before breakfast"
-                : "Garden studio"
+                ? "Run 5km before morning work"
+                : "Launch SaaS Vertical Slice"
           }
         />
       </div>
+
+      {/* Category & Priority Selector */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-category">Domain / Category</Label>
+          <select
+            id="goal-category"
+            value={draft.category || "Craft & Work"}
+            onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {GOAL_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-priority">Priority</Label>
+          <select
+            id="goal-priority"
+            value={draft.priority || "medium"}
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...d,
+                priority: e.target.value as "gentle" | "medium" | "core",
+              }))
+            }
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="gentle">Gentle Focus</option>
+            <option value="medium">Steady Rhythm</option>
+            <option value="core">Core Priority</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Target & Unit */}
       {hideTarget ? null : (
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
@@ -128,8 +204,28 @@ function DraftFields({
           </div>
         </div>
       )}
+
+      {/* Habit Cadence Frequency */}
+      {draft.kind === "habit" && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-frequency">Target Frequency</Label>
+          <select
+            id="goal-frequency"
+            value={draft.frequencyPerWeek || 7}
+            onChange={(e) => setDraft((d) => ({ ...d, frequencyPerWeek: Number(e.target.value) }))}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value={7}>Daily (7 days / week)</option>
+            <option value={5}>Weekdays (5 days / week)</option>
+            <option value={4}>4 times / week</option>
+            <option value={3}>3 times / week</option>
+            <option value={2}>Twice / week</option>
+          </select>
+        </div>
+      )}
+
       <div className="grid gap-1.5">
-        <Label htmlFor="goal-deadline">Deadline</Label>
+        <Label htmlFor="goal-deadline">Deadline / Target Horizon</Label>
         <Input
           id="goal-deadline"
           type="date"
@@ -142,14 +238,47 @@ function DraftFields({
           }
         />
       </div>
+
       <div className="grid gap-1.5">
-        <Label htmlFor="goal-why">Why it matters</Label>
+        <Label htmlFor="goal-why">The Deep Why</Label>
         <Textarea
           id="goal-why"
           value={draft.why}
           onChange={(e) => setDraft((d) => ({ ...d, why: e.target.value }))}
-          placeholder="The reason you will still want this in six months."
+          placeholder="The core personal meaning you will remember when resistance hits."
+          className="min-h-16"
         />
+      </div>
+
+      {/* Psychological Guardrails (WOOP / Implementation Intentions) */}
+      <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 space-y-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Psychological Guardrails
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-obstacle" className="text-xs">
+            Anticipated Friction / Obstacle
+          </Label>
+          <Input
+            id="goal-obstacle"
+            value={draft.obstacle || ""}
+            onChange={(e) => setDraft((d) => ({ ...d, obstacle: e.target.value }))}
+            placeholder="e.g. Afternoon exhaustion, temptation to doomscroll"
+            className="text-xs"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-protocol" className="text-xs">
+            If-Then Strategy ("If obstacle occurs, then I will...")
+          </Label>
+          <Input
+            id="goal-protocol"
+            value={draft.protocol || ""}
+            onChange={(e) => setDraft((d) => ({ ...d, protocol: e.target.value }))}
+            placeholder="e.g. Put shoes on immediately and step outside for 2 mins"
+            className="text-xs"
+          />
+        </div>
       </div>
     </>
   );
@@ -178,7 +307,7 @@ export function GoalComposer({
     const id = addGoal(draft);
     setDraft(defaultDraft());
     onOpenChange(false);
-    toast("Mark set");
+    toast("Mark set with intelligent plan");
     void navigate({ to: "/goals/$goalId", params: { goalId: id } });
   }
 
@@ -186,15 +315,15 @@ export function GoalComposer({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>New mark</DrawerTitle>
-          <DrawerDescription>A purchase, a habit, or a project with steps.</DrawerDescription>
+          <DrawerTitle>New Mark</DrawerTitle>
+          <DrawerDescription>A purchase, a habit, or a project with meaningful steps.</DrawerDescription>
         </DrawerHeader>
-        <DrawerBody className="flex flex-col gap-4">
+        <DrawerBody className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
           <DraftFields draft={draft} setDraft={(fn) => setDraft(fn)} />
         </DrawerBody>
         <DrawerFooter>
           <Button type="button" onClick={submit}>
-            Set the mark
+            Plant this mark
           </Button>
         </DrawerFooter>
       </DrawerContent>
@@ -223,6 +352,11 @@ export function EditGoalSheet({
         target: goal.target,
         unit: goal.unit,
         deadline: goal.deadline,
+        category: goal.category,
+        priority: goal.priority,
+        obstacle: goal.obstacle,
+        protocol: goal.protocol,
+        frequencyPerWeek: goal.frequencyPerWeek,
       });
     }
   }, [open, goal]);
@@ -242,6 +376,11 @@ export function EditGoalSheet({
       target: Math.max(1, target),
       unit: draft.unit.trim() || current.unit,
       deadline: draft.deadline,
+      category: draft.category,
+      priority: draft.priority,
+      obstacle: draft.obstacle,
+      protocol: draft.protocol,
+      frequencyPerWeek: draft.frequencyPerWeek,
     });
     onOpenChange(false);
     toast("Mark updated");
@@ -251,10 +390,10 @@ export function EditGoalSheet({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Edit mark</DrawerTitle>
-          <DrawerDescription>Change the name, target, or the reason it matters.</DrawerDescription>
+          <DrawerTitle>Edit Mark</DrawerTitle>
+          <DrawerDescription>Recalibrate purpose, targets, and guardrails.</DrawerDescription>
         </DrawerHeader>
-        <DrawerBody className="flex flex-col gap-4">
+        <DrawerBody className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
           <DraftFields draft={draft} setDraft={(fn) => setDraft(fn)} lockKind />
         </DrawerBody>
         <DrawerFooter>
@@ -300,14 +439,14 @@ export function LogProgressSheet({
     logProgress(current.id, n, note);
     setNote("");
     onOpenChange(false);
-    toast("Logged");
+    toast("Progress logged");
   }
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Log progress</DrawerTitle>
+          <DrawerTitle>Log Progress</DrawerTitle>
           <DrawerDescription>{goal.title}</DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
@@ -322,7 +461,13 @@ export function LogProgressSheet({
             {goal.kind === "habit" ? (
               <div className="flex gap-2 pt-1">
                 {["1", "2", "3"].map((n) => (
-                  <Button key={n} type="button" size="sm" variant="secondary" onClick={() => setAmount(n)}>
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setAmount(n)}
+                  >
                     +{n}
                   </Button>
                 ))}
@@ -331,26 +476,33 @@ export function LogProgressSheet({
             {goal.kind === "purchase" ? (
               <div className="flex gap-2 pt-1">
                 {["50", "100", "250", "500"].map((n) => (
-                  <Button key={n} type="button" size="sm" variant="secondary" onClick={() => setAmount(n)}>
-                    {n}
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setAmount(n)}
+                  >
+                    +{n}
                   </Button>
                 ))}
               </div>
             ) : null}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="log-note">Note</Label>
+            <Label htmlFor="log-note">Reflection / Note</Label>
             <Textarea
               id="log-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional"
+              placeholder="How did today feel? Any insight or friction?"
+              className="min-h-20"
             />
           </div>
         </DrawerBody>
         <DrawerFooter>
           <Button type="button" onClick={submit}>
-            Save log
+            Save Log
           </Button>
         </DrawerFooter>
       </DrawerContent>
@@ -381,12 +533,19 @@ export function ReminderSheet({
     if (local.enabled) {
       const ok = await ensureNotifyPermission();
       if (!ok) {
-        toast("Reminders will ping in-app until notifications are allowed.");
+        toast("Please grant notification permission in your browser");
       }
     }
-    setReminder(current.id, local);
+    setReminder(current.id, local.enabled ? local : null);
     onOpenChange(false);
-    toast(local.enabled ? "Reminder set" : "Reminder off");
+    toast(local.enabled ? "Reminder set" : "Reminder removed");
+  }
+
+  function toggleDay(d: number) {
+    const set = new Set(local.days);
+    if (set.has(d)) set.delete(d);
+    else set.add(d);
+    setLocal((r) => ({ ...r, days: Array.from(set).sort() }));
   }
 
   return (
@@ -394,71 +553,66 @@ export function ReminderSheet({
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Reminder</DrawerTitle>
-          <DrawerDescription>
-            A nudge on the days you chose. Works while Waymark is open, and as a system notification if
-            you allow it.
-          </DrawerDescription>
+          <DrawerDescription>A nudge at the hour you are most receptive.</DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
-          <div className="flex items-center justify-between rounded-md bg-secondary px-3 py-3">
-            <Label htmlFor="rem-on" className="text-sm text-foreground">
-              Enabled
-            </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="rem-enabled">Enable reminder</Label>
             <Switch
-              id="rem-on"
+              id="rem-enabled"
               checked={local.enabled}
-              onCheckedChange={(enabled) => setLocal((r) => ({ ...r, enabled }))}
+              onCheckedChange={(checked) => setLocal((r) => ({ ...r, enabled: checked }))}
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="rem-time">Time</Label>
-            <Input
-              id="rem-time"
-              type="time"
-              value={local.time}
-              onChange={(e) => setLocal((r) => ({ ...r, time: e.target.value }))}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Days</Label>
-            <div className="flex gap-1">
-              {WEEKDAYS.map((d) => {
-                const on = local.days.includes(d.id);
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    aria-label={d.name}
-                    onClick={() =>
-                      setLocal((r) => ({
-                        ...r,
-                        days: on ? r.days.filter((x) => x !== d.id) : [...r.days, d.id].sort(),
-                      }))
-                    }
-                    className={cn(
-                      "flex h-11 flex-1 items-center justify-center rounded-sm text-xs font-medium transition-colors duration-150",
-                      on ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
-                    )}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="rem-msg">Message</Label>
-            <Input
-              id="rem-msg"
-              value={local.message}
-              onChange={(e) => setLocal((r) => ({ ...r, message: e.target.value }))}
-              placeholder={goal.title}
-            />
-          </div>
+          {local.enabled ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rem-time">Time</Label>
+                <Input
+                  id="rem-time"
+                  type="time"
+                  value={local.time}
+                  onChange={(e) => setLocal((r) => ({ ...r, time: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Days of the week</Label>
+                <div className="grid grid-cols-7 gap-1">
+                  {WEEKDAYS.map((w) => {
+                    const on = local.days.includes(w.id);
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => toggleDay(w.id)}
+                        className={cn(
+                          "h-10 rounded-md border text-xs font-medium transition-colors",
+                          on
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card text-muted-foreground",
+                        )}
+                      >
+                        {w.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rem-msg">Message</Label>
+                <Input
+                  id="rem-msg"
+                  value={local.message}
+                  onChange={(e) => setLocal((r) => ({ ...r, message: e.target.value }))}
+                  placeholder={goal.title}
+                />
+              </div>
+            </>
+          ) : null}
         </DrawerBody>
         <DrawerFooter>
-          <Button type="button" onClick={() => void save()}>
-            Save reminder
+          <Button type="button" onClick={save}>
+            Save
           </Button>
         </DrawerFooter>
       </DrawerContent>
@@ -473,31 +627,46 @@ export function SettingsSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const name = useGoalStore((s) => s.profile.name);
+  const profile = useGoalStore((s) => s.profile);
   const setName = useGoalStore((s) => s.setName);
-  const resetToSeed = useGoalStore((s) => s.resetToSeed);
+  const setProfile = useGoalStore((s) => s.setProfile);
   const exportSnapshot = useGoalStore((s) => s.exportSnapshot);
   const importSnapshot = useGoalStore((s) => s.importSnapshot);
-  const [local, setLocal] = useState(name);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const resetToSeed = useGoalStore((s) => s.resetToSeed);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [localName, setLocalName] = useState(profile.name);
+  const [apiKey, setApiKey] = useState(profile.aiApiKey || "");
+  const [provider, setProvider] = useState<"offline" | "gemini" | "openai" | "groq">(
+    profile.aiProvider || "offline",
+  );
+  const [confirmReset, setConfirmReset] = useState(false);
+
   useEffect(() => {
-    if (open) setLocal(name);
-  }, [open, name]);
+    if (open) {
+      setLocalName(profile.name);
+      setApiKey(profile.aiApiKey || "");
+      setProvider(profile.aiProvider || "offline");
+    }
+  }, [open, profile]);
 
   function save() {
-    setName(local.trim());
+    setName(localName);
+    setProfile({
+      aiApiKey: apiKey.trim() || undefined,
+      aiProvider: provider,
+    });
     onOpenChange(false);
-    toast(local.trim() ? `Hello, ${local.trim()}` : "Name cleared");
+    toast("Settings saved");
   }
 
   function downloadBackup() {
-    const blob = new Blob([JSON.stringify(exportSnapshot(), null, 2)], { type: "application/json" });
+    const snap = exportSnapshot();
+    const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `waymark-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `waymaker-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast("Backup downloaded");
@@ -510,13 +679,13 @@ export function SettingsSheet({
       try {
         const parsed = JSON.parse(String(reader.result));
         if (!importSnapshot(parsed)) {
-          toast("That file is not a Waymark backup");
+          toast("That file is not a valid Waymaker backup");
           return;
         }
         onOpenChange(false);
-        toast("Backup restored");
+        toast("Backup restored successfully!");
       } catch {
-        toast("Could not read that file");
+        toast("Could not read backup file");
       }
     };
     reader.readAsText(file);
@@ -527,28 +696,75 @@ export function SettingsSheet({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>You</DrawerTitle>
-            <DrawerDescription>A name for the greeting. Everything stays on this device.</DrawerDescription>
+            <DrawerTitle>Settings & Profile</DrawerTitle>
+            <DrawerDescription>Waymaker local profile, cloud sync, and AI engine.</DrawerDescription>
           </DrawerHeader>
-          <DrawerBody className="flex flex-col gap-4">
+          <DrawerBody className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+            {/* User Name */}
             <div className="grid gap-1.5">
-              <Label htmlFor="you-name">What should we call you?</Label>
+              <Label htmlFor="you-name">Your Name</Label>
               <Input
                 id="you-name"
-                value={local}
-                onChange={(e) => setLocal(e.target.value)}
-                placeholder="Your name"
+                value={localName}
+                onChange={(e) => setLocalName(e.target.value)}
+                placeholder="What should Waymaker call you?"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") save();
                 }}
               />
             </div>
+
+            {/* AI Engine Configuration */}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Sparkles className="size-3.5 text-sage" />
+                <span>Waymaker Intelligence Engine</span>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ai-provider" className="text-xs">
+                  AI Mode
+                </Label>
+                <select
+                  id="ai-provider"
+                  value={provider}
+                  onChange={(e) =>
+                    setProvider(e.target.value as "offline" | "gemini" | "openai" | "groq")
+                  }
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="offline">Built-in Intelligent Planner (Offline & Fast)</option>
+                  <option value="gemini">Google Gemini API</option>
+                  <option value="openai">OpenAI API</option>
+                  <option value="groq">Groq (Ultra-fast LLM)</option>
+                </select>
+              </div>
+              {provider !== "offline" && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ai-key" className="text-xs">
+                    Custom API Key
+                  </Label>
+                  <Input
+                    id="ai-key"
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-... or AIzaSy..."
+                    className="h-8 text-xs font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Stored securely only on your local browser/device.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Backup & Restore */}
             <div className="flex flex-col gap-2">
               <Button type="button" variant="secondary" onClick={downloadBackup}>
-                Download backup
+                Export Backup (JSON)
               </Button>
               <Button type="button" variant="outline" onClick={() => fileRef.current?.click()}>
-                Restore from file
+                Restore Backup from File
               </Button>
               <input
                 ref={fileRef}
@@ -562,9 +778,11 @@ export function SettingsSheet({
                 }}
               />
             </div>
+
+            {/* Notifications Test */}
             <div className="rounded-md border border-border bg-secondary/40 p-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Notifications</span>
+                <span className="text-muted-foreground">System Notifications</span>
                 <span className="font-medium text-foreground capitalize">
                   {typeof window !== "undefined" && "Notification" in window
                     ? Notification.permission
@@ -580,8 +798,8 @@ export function SettingsSheet({
                   onClick={async () => {
                     const ok = await ensureNotifyPermission();
                     if (ok) {
-                      await sendNotification("Waymark Test", {
-                        body: "Notifications are working properly on your device!",
+                      await sendNotification("Waymaker Test", {
+                        body: "Quiet reminders are working properly!",
                         icon: "/icon-192.png",
                       });
                       toast("Test notification sent!");
@@ -597,26 +815,26 @@ export function SettingsSheet({
 
             <button
               type="button"
-              className="text-left text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="text-left text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline pt-1"
               onClick={() => setConfirmReset(true)}
             >
-              Restore the sample marks
+              Reset to sample marks
             </button>
           </DrawerBody>
           <DrawerFooter>
             <Button type="button" onClick={save}>
-              Save
+              Save Settings
             </Button>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
       <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Replace everything with samples?</AlertDialogTitle>
+            <AlertDialogTitle>Reset everything to samples?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your marks, logs, and boards on this device will be overwritten. Download a backup first if
-              you might want them back.
+              Your local marks, logs, and boards will be reset. Download a backup first if you wish to keep them.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -630,7 +848,7 @@ export function SettingsSheet({
                 toast("Sample marks restored");
               }}
             >
-              Restore samples
+              Reset to samples
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
