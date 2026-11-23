@@ -1,5 +1,5 @@
 // Service Worker for Waymark
-const CACHE_NAME = "waymark-v1";
+const CACHE_NAME = "waymark-v2";
 const STATIC_ASSETS = [
   "/",
   "/favicon.svg",
